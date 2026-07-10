@@ -1,0 +1,22 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+backend/app.db
+backend/app.db-*
+backend/uploads/
+backend/.pytest_cache/
+.env
+*.env.local
+
+# Node / Next
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+*.log
