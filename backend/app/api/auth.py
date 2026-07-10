@@ -12,9 +12,12 @@ from app.core.security import (
     generate_refresh_token,
     hash_password,
     hash_refresh_token,
+    verify_password,
 )
 from app.models import RefreshToken, User
 from app.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
     LogoutRequest,
     RefreshRequest,
     RegisterRequest,
@@ -71,6 +74,19 @@ async def register(payload: RegisterRequest, db: DbSession):
     return RegisterResponse(
         username=user.username, otp_hint=settings.fixed_otp
     )
+
+
+@router.post("/login", response_model=LoginResponse)
+async def login(payload: LoginRequest, db: DbSession):
+    user = await db.scalar(
+        select(User).where(User.username == payload.username)
+    )
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+        )
+    return LoginResponse(username=user.username, otp_hint=settings.fixed_otp)
 
 
 @router.post("/verify", response_model=TokenResponse)

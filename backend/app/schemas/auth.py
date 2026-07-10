@@ -14,6 +14,16 @@ class RegisterResponse(BaseModel):
     otp_hint: str
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    username: str
+    otp_hint: str
+
+
 class VerifyRequest(BaseModel):
     username: str
     otp: str

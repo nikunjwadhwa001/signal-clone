@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+:root {
+  /* Signal's exact palette in light mode */
+  --signal-blue: #2c6bed;
+  --signal-blue-dark: #1851b4;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f6f6;
+  --bg-tertiary: #eeeeee;
+  --bg-hover: #f0f0f0;
+  --bg-active: #e4ebfc;
+  --border-color: #e2e2e2;
+  --text-primary: #1b1b1b;
+  --text-secondary: #6a6a6a;
+  --text-tertiary: #8a8a8a;
+  --bubble-outgoing: #2c6bed;
+  --bubble-outgoing-text: #ffffff;
+  --bubble-incoming: #e6e6e6;
+  --bubble-incoming-text: #1b1b1b;
+}
+
+:root[data-theme="dark"] {
+  --bg-primary: #1b1b1b;
+  --bg-secondary: #131313;
+  --bg-tertiary: #2c2c2e;
+  --bg-hover: #2a2a2a;
+  --bg-active: #1e355e;
+  --border-color: #2e2e2e;
+  --text-primary: #e9e9e9;
+  --text-secondary: #a2a2a2;
+  --text-tertiary: #7c7c7c;
+  --bubble-outgoing: #2c6bed;
+  --bubble-outgoing-text: #ffffff;
+  --bubble-incoming: #2c2c2e;
+  --bubble-incoming-text: #e9e9e9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-primary: #1b1b1b;
+    --bg-secondary: #131313;
+    --bg-tertiary: #2c2c2e;
+    --bg-hover: #2a2a2a;
+    --bg-active: #1e355e;
+    --border-color: #2e2e2e;
+    --text-primary: #e9e9e9;
+    --text-secondary: #a2a2a2;
+    --text-tertiary: #7c7c7c;
+    --bubble-incoming: #2c2c2e;
+    --bubble-incoming-text: #e9e9e9;
+  }
+}
+
+@theme inline {
+  --color-signal-blue: var(--signal-blue);
+  --color-signal-blue-dark: var(--signal-blue-dark);
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-border: var(--border-color);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-bubble-outgoing: var(--bubble-outgoing);
+  --color-bubble-outgoing-text: var(--bubble-outgoing-text);
+  --color-bubble-incoming: var(--bubble-incoming);
+  --color-bubble-incoming-text: var(--bubble-incoming-text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+  border-radius: 4px;
+  opacity: 0.4;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

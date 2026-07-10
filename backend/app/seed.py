@@ -32,54 +32,54 @@ def _safety_number() -> str:
 
 
 USERS = [
-    ("alice", "Alice Johnson", "+15550100101", "Coffee, code, repeat."),
-    ("bob", "Bob Martinez", "+15550100102", "Available"),
-    ("carol", "Carol Nguyen", "+15550100103", "Out hiking 🏔️"),
-    ("dave", "Dave Patel", "+15550100104", "At the gym"),
-    ("erin", "Erin Walsh", "+15550100105", "Speak freely."),
-    ("frank", "Frank Obi", "+15550100106", "Building things."),
+    ("nikunj", "Nikunj Wadhwa", "+15550100101", "Coffee, code, repeat."),
+    ("hritish", "Hritish", "+15550100102", "Available"),
+    ("aryan", "Aryan", "+15550100103", "Out hiking 🏔️"),
+    ("samdeep", "Samdeep", "+15550100104", "At the gym"),
+    ("navya", "Navya", "+15550100105", "Speak freely."),
+    ("monika", "Monika", "+15550100106", "Building things."),
 ]
 
 DIRECT_SCRIPTS = {
-    ("alice", "bob"): [
-        ("bob", "Hey Alice! Did you get a chance to look at the PR?"),
-        ("alice", "Yeah, reviewing it now. Looks solid 👍"),
-        ("bob", "Awesome, thanks. Let me know if anything's off."),
-        ("alice", "Will do. One small nit on the naming, otherwise good to merge."),
-        ("bob", "Cool, I'll push a fixup in a sec."),
+    ("nikunj", "hritish"): [
+        ("hritish", "Hey Nikunj! Did you get a chance to look at the PR?"),
+        ("nikunj", "Yeah, reviewing it now. Looks solid 👍"),
+        ("hritish", "Awesome, thanks. Let me know if anything's off."),
+        ("nikunj", "Will do. One small nit on the naming, otherwise good to merge."),
+        ("hritish", "Cool, I'll push a fixup in a sec."),
     ],
-    ("alice", "carol"): [
-        ("carol", "Lunch tomorrow?"),
-        ("alice", "Yes! The usual place at 1?"),
-        ("carol", "Perfect, see you then 😊"),
+    ("nikunj", "aryan"): [
+        ("aryan", "Lunch tomorrow?"),
+        ("nikunj", "Yes! The usual place at 1?"),
+        ("aryan", "Perfect, see you then 😊"),
     ],
-    ("alice", "dave"): [
-        ("dave", "Can you send me the deck when you get a chance?"),
-        ("alice", "Just sent it over."),
-        ("dave", "Got it, thanks!"),
+    ("nikunj", "samdeep"): [
+        ("samdeep", "Can you send me the deck when you get a chance?"),
+        ("nikunj", "Just sent it over."),
+        ("samdeep", "Got it, thanks!"),
     ],
 }
 
 GROUPS = [
     (
         "Weekend Trip 🏕️",
-        ["alice", "bob", "carol", "dave"],
+        ["nikunj", "hritish", "aryan", "samdeep"],
         [
-            ("carol", "Okay who's driving?"),
-            ("dave", "I can drive, I've got the big car."),
-            ("bob", "Nice. I'll bring snacks 🍿"),
-            ("alice", "I'll handle the campsite booking."),
-            ("carol", "You're the best. This is going to be so fun!"),
+            ("aryan", "Okay who's driving?"),
+            ("samdeep", "I can drive, I've got the big car."),
+            ("hritish", "Nice. I'll bring snacks 🍿"),
+            ("nikunj", "I'll handle the campsite booking."),
+            ("aryan", "You're the best. This is going to be so fun!"),
         ],
     ),
     (
         "Design Team",
-        ["alice", "erin", "frank"],
+        ["nikunj", "navya", "monika"],
         [
-            ("erin", "New mockups are up in Figma."),
-            ("frank", "Looking at them now — love the new color system."),
-            ("alice", "Agreed, the contrast is much better."),
-            ("erin", "Thanks! I'll finalize by EOD."),
+            ("navya", "New mockups are up in Figma."),
+            ("monika", "Looking at them now — love the new color system."),
+            ("nikunj", "Agreed, the contrast is much better."),
+            ("navya", "Thanks! I'll finalize by EOD."),
         ],
     ),
 ]
@@ -120,17 +120,17 @@ async def seed():
             users[username] = u
         await db.flush()
 
-        # Contacts: everyone knows alice; alice knows everyone.
+        # Contacts: everyone knows nikunj; nikunj knows everyone.
         for username, u in users.items():
-            if username != "alice":
+            if username != "nikunj":
                 db.add(
                     Contact(
-                        owner_id=users["alice"].id, contact_user_id=u.id
+                        owner_id=users["nikunj"].id, contact_user_id=u.id
                     )
                 )
                 db.add(
                     Contact(
-                        owner_id=u.id, contact_user_id=users["alice"].id
+                        owner_id=u.id, contact_user_id=users["nikunj"].id
                     )
                 )
 
@@ -214,7 +214,7 @@ async def seed():
             db.add(
                 Reaction(
                     message_id=first_group_msg.id,
-                    user_id=users["bob"].id,
+                    user_id=users["hritish"].id,
                     emoji="👍",
                 )
             )
