@@ -28,7 +28,7 @@ export function avatarColor(seed: number): string {
 
 export function formatMessageTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
 export function formatConversationTime(iso: string | null): string {
@@ -36,7 +36,7 @@ export function formatConversationTime(iso: string | null): string {
   const d = new Date(iso);
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
-  if (isToday) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (isToday) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (d.toDateString() === yesterday.toDateString()) return "Yesterday";

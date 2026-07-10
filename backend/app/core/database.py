@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from datetime import datetime, timezone
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -8,12 +9,38 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.types import DateTime, TypeDecorator
 
 from app.core.config import settings
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class UTCDateTime(TypeDecorator):
+    """SQLite has no real tz-aware timestamp type, so SQLAlchemy hands back
+    naive datetimes on read. That makes JSON-serialized timestamps ambiguous
+    to browser Date parsing (interpreted as local time, not UTC), silently
+    shifting displayed times/day-grouping by the client's UTC offset. This
+    type always stores UTC and always returns tz-aware UTC datetimes."""
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect):
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    def process_result_value(self, value: datetime | None, dialect):
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 engine = create_async_engine(

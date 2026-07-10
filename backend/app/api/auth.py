@@ -94,10 +94,15 @@ async def verify(payload: VerifyRequest, db: DbSession):
     user = await db.scalar(
         select(User).where(User.username == payload.username)
     )
-    if user is None or payload.otp != settings.fixed_otp:
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or OTP",
+        )
+    if payload.otp != settings.fixed_otp:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid OTP",
         )
     return await _issue_tokens(db, user)
 

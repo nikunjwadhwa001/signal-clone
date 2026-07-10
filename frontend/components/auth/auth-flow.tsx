@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { login, register, verify } from "@/lib/api/auth";
 import { getMe } from "@/lib/api/users";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { api } from "@/lib/api/client";
 
 type Step = "welcome" | "register" | "otp";
 
@@ -63,7 +62,7 @@ export function AuthFlow() {
       setSession(tokens.access_token, tokens.refresh_token, me);
       router.push("/chat");
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Invalid code, try again");
+      setError(err?.response?.data?.detail || "Invalid OTP, try again");
     } finally {
       setLoading(false);
     }
@@ -192,7 +191,11 @@ export function AuthFlow() {
             </button>
             <button
               type="button"
-              onClick={() => setStep("register")}
+              onClick={() => {
+                setError(null);
+                setOtp("");
+                setStep("register");
+              }}
               className="text-sm text-text-secondary hover:underline"
             >
               Back

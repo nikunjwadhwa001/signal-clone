@@ -16,6 +16,8 @@ import { markRead } from "@/lib/api/conversations";
 import { queryKeys } from "@/lib/query-keys";
 import type { DisplayMessage } from "@/lib/types";
 
+const EMPTY_TYPING: number[] = [];
+
 function dayLabel(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -35,7 +37,7 @@ export function ChatPane({ conversationId }: { conversationId: number }) {
   const userId = useAuthStore((s) => s.user?.id);
   const queryClient = useQueryClient();
   const typingUserIds = useRealtimeStore(
-    (s) => s.typingByConversation[conversationId] || []
+    (s) => s.typingByConversation[conversationId] || EMPTY_TYPING
   );
   const pruneExpiredTyping = useRealtimeStore((s) => s.pruneExpiredTyping);
 

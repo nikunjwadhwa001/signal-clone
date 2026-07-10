@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Modal } from "@/components/ui/modal";
 import { Avatar } from "@/components/ui/avatar";
 import { searchUsers } from "@/lib/api/users";
+import { listContacts } from "@/lib/api/contacts";
 import { createConversation } from "@/lib/api/conversations";
 import { queryKeys } from "@/lib/query-keys";
 import type { UserPublic } from "@/lib/types";
@@ -14,16 +15,23 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
   const [tab, setTab] = useState<"direct" | "group">("direct");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<UserPublic[]>([]);
+  const [contacts, setContacts] = useState<UserPublic[]>([]);
   const [selected, setSelected] = useState<UserPublic[]>([]);
   const [groupName, setGroupName] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    if (open) listContacts().then(setContacts).catch(() => {});
+  }, [open]);
+
   async function handleSearch(q: string) {
     setQuery(q);
     setResults(q.trim() ? await searchUsers(q) : []);
   }
+
+  const shownUsers = query.trim() ? results : contacts;
 
   function toggleSelect(user: UserPublic) {
     setSelected((prev) =>
@@ -114,7 +122,12 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
       )}
 
       <div className="flex flex-col gap-1">
-        {results.map((u) => {
+        {!query.trim() && contacts.length > 0 && (
+          <p className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+            Contacts
+          </p>
+        )}
+        {shownUsers.map((u) => {
           const isSelected = selected.some((s) => s.id === u.id);
           return (
             <button
@@ -138,8 +151,10 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
             </button>
           );
         })}
-        {query && results.length === 0 && (
-          <p className="py-4 text-center text-sm text-text-tertiary">No users found</p>
+        {shownUsers.length === 0 && (
+          <p className="py-4 text-center text-sm text-text-tertiary">
+            {query.trim() ? "No users found" : "No contacts yet — search to start a chat"}
+          </p>
         )}
       </div>
 

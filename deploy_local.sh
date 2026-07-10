@@ -63,8 +63,28 @@ until curl -sf http://localhost:8000/health >/dev/null 2>&1; do
 done
 echo "✓ Backend is healthy!"
 
-echo "📦 Seeding demo data..."
-docker compose exec -T backend python -m app.seed
+echo "🔎 Checking whether demo data already exists..."
+HAS_DATA=$(docker compose exec -T backend python -c "
+import sqlite3
+try:
+    conn = sqlite3.connect('/data/app.db')
+    cur = conn.execute(\"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'\")
+    if cur.fetchone()[0] == 0:
+        print('empty')
+    else:
+        cur = conn.execute('SELECT COUNT(*) FROM users')
+        print('has_data' if cur.fetchone()[0] > 0 else 'empty')
+except sqlite3.OperationalError:
+    print('empty')
+" 2>/dev/null | tr -d '\r')
+
+if [ "$HAS_DATA" = "has_data" ]; then
+  echo "✓ Existing data found — skipping seed to preserve your conversations."
+  echo "  (Run './deploy_local.sh reseed' to wipe and start fresh.)"
+else
+  echo "📦 No existing data — seeding demo data..."
+  docker compose exec -T backend python -m app.seed
+fi
 
 echo ""
 echo "📊 Running containers:"

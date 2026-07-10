@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession
 from app.models import (
+    Contact,
     Conversation,
     ConversationMember,
     Message,
@@ -141,6 +142,12 @@ async def create_conversation(
         existing = await convo_svc.find_direct_conversation(db, user.id, other)
         if existing is not None:
             return await _build_conversation_out(db, existing, user.id)
+        # Starting a DM implicitly makes each party a contact of the other,
+        # same as Signal/WhatsApp — there's no separate "add contact" step.
+        if await db.get(Contact, (user.id, other)) is None:
+            db.add(Contact(owner_id=user.id, contact_user_id=other))
+        if await db.get(Contact, (other, user.id)) is None:
+            db.add(Contact(owner_id=other, contact_user_id=user.id))
 
     convo = Conversation(
         type=payload.type,

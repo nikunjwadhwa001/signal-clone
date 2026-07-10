@@ -1,7 +1,6 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    DateTime,
     ForeignKey,
     Integer,
     String,
@@ -11,7 +10,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base
+from app.core.database import Base, UTCDateTime
 
 
 class Message(Base):
@@ -41,13 +40,13 @@ class Message(Base):
         ForeignKey("messages.id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        UTCDateTime(), server_default=func.now()
     )
-    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    edited_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # Set when disappearing messages are on; filtered out past this instant.
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # Tombstone: preserved so replies pointing here don't dangle.
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class MessageReceipt(Base):
@@ -59,8 +58,8 @@ class MessageReceipt(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delivered_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    read_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class Reaction(Base):
@@ -74,5 +73,5 @@ class Reaction(Base):
     )
     emoji: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        UTCDateTime(), server_default=func.now()
     )

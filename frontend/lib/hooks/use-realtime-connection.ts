@@ -84,7 +84,9 @@ export function useRealtimeConnection() {
     });
 
     const offAck = socketManager.on("message.ack", (data) => {
-      const { client_id, id, seq, created_at } = data;
+      const { client_id, id, conversation_id, seq, created_at } = data;
+      let ackedBody: string | undefined;
+      let ackedSenderId: number | undefined;
       queryClient.setQueriesData<DisplayMessage[]>(
         { queryKey: ["messages"] },
         (old) => {
@@ -93,9 +95,37 @@ export function useRealtimeConnection() {
           if (idx === -1) return old;
           const copy = [...old];
           copy[idx] = { ...copy[idx], id, seq, created_at, status: "sent" };
+          ackedBody = copy[idx].body;
+          ackedSenderId = copy[idx].sender_id;
           return copy;
         }
       );
+      if (conversation_id != null) {
+        queryClient.setQueryData<ConversationOut[]>(
+          queryKeys.conversations,
+          (old = []) => {
+            const idx = old.findIndex((c) => c.id === conversation_id);
+            if (idx === -1) return old;
+            const convo = old[idx];
+            const updated: ConversationOut = {
+              ...convo,
+              last_message_at: created_at,
+              last_seq: Math.max(convo.last_seq, seq),
+              last_message: {
+                id,
+                seq,
+                sender_id: ackedSenderId ?? currentUserId ?? convo.last_message?.sender_id,
+                content_type: convo.last_message?.content_type ?? "text",
+                body: ackedBody ?? convo.last_message?.body ?? "",
+                created_at,
+                deleted_at: null,
+              },
+            };
+            const rest = old.filter((_, i) => i !== idx);
+            return [updated, ...rest];
+          }
+        );
+      }
     });
 
     const offReceiptUpdate = socketManager.on("receipt.update", (data) => {

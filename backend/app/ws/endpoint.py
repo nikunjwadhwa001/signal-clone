@@ -90,6 +90,7 @@ async def _handle_message_send(ws, user: User, data: dict, db: AsyncSession):
             "type": "message.ack",
             "client_id": client_id,
             "id": message.id,
+            "conversation_id": conversation_id,
             "seq": message.seq,
             "created_at": message.created_at.isoformat(),
         }

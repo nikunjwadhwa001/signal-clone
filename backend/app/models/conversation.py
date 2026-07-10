@@ -3,7 +3,6 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
-    DateTime,
     Enum,
     ForeignKey,
     Integer,
@@ -12,7 +11,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base
+from app.core.database import Base, UTCDateTime
 
 
 class ConversationType(str, enum.Enum):
@@ -38,12 +37,12 @@ class Conversation(Base):
     disappearing_seconds: Mapped[int] = mapped_column(Integer, default=0)
     # Denormalized for cheap conversation-list sorting.
     last_message_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
+        UTCDateTime()
     )
     # Server-side monotonic counter; the next message gets seq = last_seq + 1.
     last_seq: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        UTCDateTime(), server_default=func.now()
     )
 
 
@@ -65,5 +64,5 @@ class ConversationMember(Base):
     last_read_seq: Mapped[int] = mapped_column(Integer, default=0)
     muted: Mapped[bool] = mapped_column(Boolean, default=False)
     joined_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        UTCDateTime(), server_default=func.now()
     )
