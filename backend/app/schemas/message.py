@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ReactionOut(BaseModel):
@@ -39,6 +39,15 @@ class SendMessageRequest(BaseModel):
     body: str = Field(min_length=1, max_length=8000)
     content_type: str = "text"
     reply_to_id: int | None = None
+
+    @field_validator("body")
+    @classmethod
+    def body_not_blank(cls, v: str) -> str:
+        # min_length=1 alone lets "   " through; the WS path already does
+        # this same .strip() check, so mirror it here for the REST fallback.
+        if not v.strip():
+            raise ValueError("Message body cannot be blank")
+        return v
 
 
 class ReactionRequest(BaseModel):

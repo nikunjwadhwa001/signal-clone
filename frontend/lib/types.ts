@@ -39,6 +39,7 @@ export interface ConversationOut {
   last_message_at: string | null;
   last_seq: number;
   unread_count: number;
+  is_active_member: boolean;
   members: MemberOut[];
   last_message: MessagePreview | null;
   peer: UserPublic | null;

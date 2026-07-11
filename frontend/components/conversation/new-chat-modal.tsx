@@ -19,11 +19,15 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
   const [selected, setSelected] = useState<UserPublic[]>([]);
   const [groupName, setGroupName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (open) listContacts().then(setContacts).catch(() => {});
+    if (open) {
+      listContacts().then(setContacts).catch(() => {});
+      setError(null);
+    }
   }, [open]);
 
   async function handleSearch(q: string) {
@@ -43,11 +47,14 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
 
   async function startDirect(user: UserPublic) {
     setLoading(true);
+    setError(null);
     try {
       const convo = await createConversation({ type: "direct", member_ids: [user.id] });
       await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       onClose();
       router.push(`/chat/${convo.id}`);
+    } catch {
+      setError("Couldn't start chat — your session may have expired. Try logging in again.");
     } finally {
       setLoading(false);
     }
@@ -56,6 +63,7 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
   async function createGroup() {
     if (!groupName.trim() || selected.length === 0) return;
     setLoading(true);
+    setError(null);
     try {
       const convo = await createConversation({
         type: "group",
@@ -65,6 +73,8 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
       await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       onClose();
       router.push(`/chat/${convo.id}`);
+    } catch {
+      setError("Couldn't create group — your session may have expired. Try logging in again.");
     } finally {
       setLoading(false);
     }
@@ -90,6 +100,10 @@ export function NewChatModal({ open, onClose }: { open: boolean; onClose: () => 
           New group
         </button>
       </div>
+
+      {error && (
+        <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>
+      )}
 
       {tab === "group" && (
         <input

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useRealtimeStore } from "@/lib/stores/realtime-store";
+import { renderSystemMessage } from "@/lib/system-message";
 import { cn, formatConversationTime } from "@/lib/utils";
 import type { ConversationOut } from "@/lib/types";
 
@@ -13,6 +15,7 @@ export function ConversationItem({
   conversation: ConversationOut;
   active: boolean;
 }) {
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const isGroup = conversation.type === "group";
   const name = isGroup ? conversation.name || "Group" : conversation.peer?.display_name || "Unknown";
   const avatarSeed = isGroup ? conversation.id : conversation.peer?.id || conversation.id;
@@ -26,6 +29,12 @@ export function ConversationItem({
   const preview = conversation.last_message
     ? conversation.last_message.deleted_at
       ? "This message was deleted"
+      : conversation.last_message.content_type.startsWith("system")
+      ? renderSystemMessage(
+          conversation.last_message.content_type,
+          conversation.last_message.body,
+          currentUserId
+        )
       : conversation.last_message.body
     : "No messages yet";
 

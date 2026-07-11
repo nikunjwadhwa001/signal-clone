@@ -14,6 +14,7 @@ import { useRealtimeStore } from "@/lib/stores/realtime-store";
 import { socketManager } from "@/lib/ws/socket-manager";
 import { markRead } from "@/lib/api/conversations";
 import { queryKeys } from "@/lib/query-keys";
+import { renderSystemMessage } from "@/lib/system-message";
 import type { DisplayMessage } from "@/lib/types";
 
 const EMPTY_TYPING: number[] = [];
@@ -160,21 +161,29 @@ export function ChatPane({ conversationId }: { conversationId: number }) {
               </span>
             </div>
             <div className="flex flex-col gap-2">
-              {group.items.map((m) => (
-                <MessageBubble
-                  key={m.client_id}
-                  message={m}
-                  mine={m.sender_id === userId}
-                  senderName={
-                    isGroup && m.sender_id !== userId
-                      ? conversation.members.find((mem) => mem.user.id === m.sender_id)?.user
-                          .display_name
-                      : undefined
-                  }
-                  onReply={setReplyTo}
-                  repliedMessage={m.reply_to_id ? messageById.get(m.reply_to_id) : undefined}
-                />
-              ))}
+              {group.items.map((m) =>
+                m.content_type.startsWith("system") ? (
+                  <div key={m.client_id} className="flex justify-center">
+                    <span className="max-w-[80%] rounded-full bg-bg-tertiary px-3 py-1 text-center text-xs text-text-tertiary">
+                      {renderSystemMessage(m.content_type, m.body, userId)}
+                    </span>
+                  </div>
+                ) : (
+                  <MessageBubble
+                    key={m.client_id}
+                    message={m}
+                    mine={m.sender_id === userId}
+                    senderName={
+                      isGroup && m.sender_id !== userId
+                        ? conversation.members.find((mem) => mem.user.id === m.sender_id)?.user
+                            .display_name
+                        : undefined
+                    }
+                    onReply={setReplyTo}
+                    repliedMessage={m.reply_to_id ? messageById.get(m.reply_to_id) : undefined}
+                  />
+                )
+              )}
             </div>
           </div>
         ))}
@@ -186,7 +195,15 @@ export function ChatPane({ conversationId }: { conversationId: number }) {
         <div ref={bottomRef} />
       </div>
 
-      <Composer conversationId={conversationId} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+      {conversation.is_active_member ? (
+        <Composer conversationId={conversationId} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+      ) : (
+        <div className="border-t border-border bg-bg-primary px-4 py-3 text-center text-sm text-text-tertiary">
+          {isGroup
+            ? "You can no longer send messages to this group."
+            : "You can no longer send messages here."}
+        </div>
+      )}
     </div>
   );
 }

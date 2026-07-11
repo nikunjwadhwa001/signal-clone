@@ -114,7 +114,7 @@ export function useRealtimeConnection() {
               last_message: {
                 id,
                 seq,
-                sender_id: ackedSenderId ?? currentUserId ?? convo.last_message?.sender_id,
+                sender_id: ackedSenderId ?? currentUserId ?? convo.last_message?.sender_id ?? 0,
                 content_type: convo.last_message?.content_type ?? "text",
                 body: ackedBody ?? convo.last_message?.body ?? "",
                 created_at,
@@ -126,6 +126,32 @@ export function useRealtimeConnection() {
           }
         );
       }
+    });
+
+    const offConversationNew = socketManager.on("conversation.new", (data) => {
+      const convo: ConversationOut = data.conversation;
+      queryClient.setQueryData<ConversationOut[]>(
+        queryKeys.conversations,
+        (old = []) => {
+          if (old.some((c) => c.id === convo.id)) return old;
+          return [convo, ...old];
+        }
+      );
+    });
+
+    const offConversationUpdated = socketManager.on("conversation.updated", (data) => {
+      const convo: ConversationOut = data.conversation;
+      queryClient.setQueryData<ConversationOut[]>(
+        queryKeys.conversations,
+        (old = []) => {
+          const idx = old.findIndex((c) => c.id === convo.id);
+          if (idx === -1) return [convo, ...old];
+          const copy = [...old];
+          copy[idx] = convo;
+          return copy;
+        }
+      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.members(convo.id) });
     });
 
     const offReceiptUpdate = socketManager.on("receipt.update", (data) => {
@@ -172,6 +198,8 @@ export function useRealtimeConnection() {
       offConnected();
       offDisconnected();
       offMessageNew();
+      offConversationNew();
+      offConversationUpdated();
       offAck();
       offReceiptUpdate();
       offReactionUpdate();

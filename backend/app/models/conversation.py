@@ -66,3 +66,12 @@ class ConversationMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), server_default=func.now()
     )
+    # Soft-delete: set on remove/leave instead of deleting the row, so a
+    # former member keeps read access to history up to the point they left
+    # (and their unread/read-position bookkeeping isn't lost) while being
+    # excluded from the active member list and blocked from sending.
+    left_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # The conversation's last_seq at the moment this member left; messages
+    # sent after that are hidden from them, same as joined_at_seq hides
+    # messages sent before they joined.
+    left_at_seq: Mapped[int | None] = mapped_column(Integer)

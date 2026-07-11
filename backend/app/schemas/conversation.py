@@ -32,6 +32,9 @@ class ConversationOut(BaseModel):
     last_message_at: datetime | None
     last_seq: int
     unread_count: int
+    # False once you've left or been removed — the client uses this to show
+    # a "you're no longer a member" banner and disable the composer.
+    is_active_member: bool = True
     members: list[MemberOut]
     last_message: MessagePreview | None = None
     # For direct chats, the other participant (convenience for the client).

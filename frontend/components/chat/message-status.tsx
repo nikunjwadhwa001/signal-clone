@@ -1,6 +1,8 @@
 import type { MessageStatus } from "@/lib/types";
 
-/** Signal's single-check / double-check / blue-check status indicator. */
+/** Signal's actual indicator: a bare check (sent), two overlapping
+ * hollow-circle checks (delivered), and two overlapping filled-circle
+ * checks (read) — not a WhatsApp-style flat double tick. */
 export function MessageStatusIcon({ status }: { status: MessageStatus }) {
   if (status === "sending") {
     return <span className="text-[11px] opacity-70">🕓</span>;
@@ -9,21 +11,27 @@ export function MessageStatusIcon({ status }: { status: MessageStatus }) {
     return <span className="text-[11px] text-red-300">⚠ Failed</span>;
   }
   if (status === "sent") {
-    return <Check color="rgba(255,255,255,0.75)" />;
+    return <BareCheck color="rgba(255,255,255,0.6)" />;
   }
   if (status === "delivered") {
-    return <DoubleCheck color="rgba(255,255,255,0.75)" />;
+    return (
+      <DoubleCircledCheck
+        ringColor="rgba(255,255,255,0.6)"
+        fill="none"
+        checkColor="rgba(255,255,255,0.6)"
+      />
+    );
   }
-  return <DoubleCheck color="#7fd1ff" />; // read
+  return <DoubleCircledCheck ringColor="#ffffff" fill="#ffffff" checkColor="var(--signal-blue)" />;
 }
 
-function Check({ color }: { color: string }) {
+function BareCheck({ color }: { color: string }) {
   return (
-    <svg width="14" height="10" viewBox="0 0 16 11" fill="none">
+    <svg width="12" height="10" viewBox="0 0 16 13" fill="none">
       <path
-        d="M1 5.5L5.5 10L15 1"
+        d="M2 7L6 11L14 1.5"
         stroke={color}
-        strokeWidth="1.6"
+        strokeWidth="1.7"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -31,20 +39,32 @@ function Check({ color }: { color: string }) {
   );
 }
 
-function DoubleCheck({ color }: { color: string }) {
+function DoubleCircledCheck({
+  ringColor,
+  fill,
+  checkColor,
+}: {
+  ringColor: string;
+  fill: string;
+  checkColor: string;
+}) {
   return (
-    <svg width="18" height="10" viewBox="0 0 20 11" fill="none">
+    <svg width="20" height="13" viewBox="0 0 21 14" fill="none">
+      {/* back badge, peeking out to the left */}
+      <circle cx="7" cy="7" r="6" stroke={ringColor} strokeWidth="1.3" fill={fill} />
       <path
-        d="M1 5.5L5.5 10L15 1"
-        stroke={color}
-        strokeWidth="1.6"
+        d="M4 7.2L6.1 9.3L10 4.8"
+        stroke={checkColor}
+        strokeWidth="1.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      {/* front badge, overlapping to the right */}
+      <circle cx="14" cy="7" r="6" stroke={ringColor} strokeWidth="1.3" fill={fill} />
       <path
-        d="M6 5.5L10.5 10L20 1"
-        stroke={color}
-        strokeWidth="1.6"
+        d="M11 7.2L13.1 9.3L17 4.8"
+        stroke={checkColor}
+        strokeWidth="1.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

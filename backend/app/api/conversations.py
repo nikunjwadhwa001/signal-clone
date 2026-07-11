@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -25,6 +26,7 @@ from app.schemas.message import MessageOut
 from app.schemas.user import UserPublic
 from app.services import conversation_service as convo_svc
 from app.services import message_service as msg_svc
+from app.ws.registry import registry
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -41,27 +43,39 @@ async def _build_conversation_out(
     me_member: ConversationMember | None = None
     peer: UserPublic | None = None
     for member, u in member_rows.all():
-        members.append(
-            MemberOut(user=UserPublic.model_validate(u), role=member.role)
-        )
+        if member.left_at is None:
+            members.append(
+                MemberOut(user=UserPublic.model_validate(u), role=member.role)
+            )
         if member.user_id == user_id:
             me_member = member
         elif convo.type == ConversationType.direct:
             peer = UserPublic.model_validate(u)
 
+    # A former member's view is frozen at the seq they left on — they never
+    # see messages sent afterward, so unread/preview must respect that cutoff
+    # the same way get_messages does.
+    visibility_cutoff = me_member.left_at_seq if me_member else None
+
     last_read = me_member.last_read_seq if me_member else 0
+    unread_clauses = [
+        Message.conversation_id == convo.id,
+        Message.seq > last_read,
+        Message.sender_id != user_id,
+        Message.deleted_at.is_(None),
+    ]
+    if visibility_cutoff is not None:
+        unread_clauses.append(Message.seq <= visibility_cutoff)
     unread = await db.scalar(
-        select(func.count()).select_from(Message).where(
-            Message.conversation_id == convo.id,
-            Message.seq > last_read,
-            Message.sender_id != user_id,
-            Message.deleted_at.is_(None),
-        )
+        select(func.count()).select_from(Message).where(*unread_clauses)
     )
 
+    last_msg_clauses = [Message.conversation_id == convo.id]
+    if visibility_cutoff is not None:
+        last_msg_clauses.append(Message.seq <= visibility_cutoff)
     last_msg_row = await db.execute(
         select(Message)
-        .where(Message.conversation_id == convo.id)
+        .where(*last_msg_clauses)
         .order_by(Message.seq.desc())
         .limit(1)
     )
@@ -87,6 +101,7 @@ async def _build_conversation_out(
         last_message_at=convo.last_message_at,
         last_seq=convo.last_seq,
         unread_count=unread or 0,
+        is_active_member=me_member is not None and me_member.left_at is None,
         members=members,
         last_message=preview,
         peer=peer,
@@ -175,8 +190,52 @@ async def create_conversation(
                 joined_at_seq=0,
             )
         )
+    if payload.type == ConversationType.group:
+        # System messages both give new members an at-a-glance "why am I
+        # here" and give the conversation a last_message_at, so it sorts to
+        # the top of the list immediately instead of sinking to the bottom
+        # behind every conversation that already has a real message.
+        await msg_svc.create_message(
+            db,
+            conversation=convo,
+            sender_id=user.id,
+            client_id=f"system-create-{convo.id}",
+            body=json.dumps(
+                {"actor_id": user.id, "actor_name": user.display_name, "group_name": convo.name}
+            ),
+            content_type="system.created",
+        )
+        added_users = [await db.get(User, mid) for mid in member_ids]
+        await msg_svc.create_message(
+            db,
+            conversation=convo,
+            sender_id=user.id,
+            client_id=f"system-added-{convo.id}",
+            body=json.dumps(
+                {
+                    "actor_id": user.id,
+                    "actor_name": user.display_name,
+                    "target_ids": [u.id for u in added_users if u is not None],
+                    "target_names": [u.display_name for u in added_users if u is not None],
+                }
+            ),
+            content_type="system.added",
+        )
     await db.commit()
     await db.refresh(convo)
+
+    # Push the new conversation to every other member in real time — without
+    # this, they'd only see it after their next manual refresh/refetch.
+    for mid in member_ids:
+        member_view = await _build_conversation_out(db, convo, mid)
+        await registry.send_to_user(
+            mid,
+            {
+                "type": "conversation.new",
+                "conversation": member_view.model_dump(mode="json"),
+            },
+        )
+
     return await _build_conversation_out(db, convo, user.id)
 
 
@@ -200,19 +259,25 @@ async def get_messages(
     before_seq: int | None = Query(default=None),
     limit: int = Query(default=50, le=100),
 ):
-    await _require_member(db, conversation_id, user.id)
-    member = await convo_svc.get_membership(db, conversation_id, user.id)
-
-    stmt = (
-        select(Message)
-        .where(
-            Message.conversation_id == conversation_id,
-            # History gating: a member never sees messages before they joined.
-            Message.seq > member.joined_at_seq,
+    convo = await db.get(Conversation, conversation_id)
+    # A former member can still read history up to when they left, so this
+    # checks membership ever having existed, not just active membership —
+    # unlike _require_member, which is for actions only active members can do.
+    member = await convo_svc.get_membership_any(db, conversation_id, user.id)
+    if convo is None or member is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
         )
-        .order_by(Message.seq.desc())
-        .limit(limit)
-    )
+
+    clauses = [
+        Message.conversation_id == conversation_id,
+        # History gating: a member never sees messages before they joined.
+        Message.seq > member.joined_at_seq,
+    ]
+    if member.left_at_seq is not None:
+        # ...or after they left/were removed.
+        clauses.append(Message.seq <= member.left_at_seq)
+    stmt = select(Message).where(*clauses).order_by(Message.seq.desc()).limit(limit)
     if before_seq is not None:
         stmt = stmt.where(Message.seq < before_seq)
 
@@ -256,7 +321,10 @@ async def get_members(conversation_id: int, user: CurrentUser, db: DbSession):
     rows = await db.execute(
         select(ConversationMember, User)
         .join(User, User.id == ConversationMember.user_id)
-        .where(ConversationMember.conversation_id == conversation_id)
+        .where(
+            ConversationMember.conversation_id == conversation_id,
+            ConversationMember.left_at.is_(None),
+        )
     )
     return [
         MemberOut(user=UserPublic.model_validate(u), role=m.role)
@@ -288,17 +356,70 @@ async def add_member(
     existing = await db.get(
         ConversationMember, (conversation_id, payload.user_id)
     )
+    if existing is not None and existing.left_at is None:
+        return  # Already an active member.
+
     if existing is None:
-        # New member joins at the current head, so they don't get the backlog.
+        # joined_at_seq=0 so a new member can see the full prior history,
+        # same as being added to the group at its creation.
         db.add(
             ConversationMember(
                 conversation_id=conversation_id,
                 user_id=payload.user_id,
                 role=MemberRole.member,
-                joined_at_seq=convo.last_seq,
+                joined_at_seq=0,
             )
         )
-        await db.commit()
+    else:
+        # Re-adding someone who previously left/was removed: reactivate
+        # rather than silently no-op (the row already exists from before).
+        existing.left_at = None
+        existing.left_at_seq = None
+        existing.joined_at_seq = 0
+        existing.role = MemberRole.member
+
+    added_user = await db.get(User, payload.user_id)
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    await msg_svc.create_message(
+        db,
+        conversation=convo,
+        sender_id=user.id,
+        client_id=f"system-add-{conversation_id}-{payload.user_id}-{now_ms}",
+        body=json.dumps(
+            {
+                "actor_id": user.id,
+                "actor_name": user.display_name,
+                "target_ids": [payload.user_id],
+                "target_names": [added_user.display_name if added_user else "someone"],
+            }
+        ),
+        content_type="system.added",
+    )
+    await db.commit()
+    await db.refresh(convo)
+
+    recipients = await convo_svc.list_member_ids(db, conversation_id)
+    total_recipients = await msg_svc.recipient_count(db, conversation_id)
+    latest_row = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.seq.desc())
+        .limit(1)
+    )
+    latest = latest_row.scalars().first()
+    if latest is not None:
+        payload_out = (
+            await msg_svc.serialize_message(db, latest, total_recipients)
+        ).model_dump(mode="json")
+        await registry.send_to_users(
+            recipients, {"type": "message.new", "message": payload_out}
+        )
+    for uid in recipients:
+        view = await _build_conversation_out(db, convo, uid)
+        await registry.send_to_user(
+            uid,
+            {"type": "conversation.updated", "conversation": view.model_dump(mode="json")},
+        )
 
 
 @router.delete(
@@ -313,13 +434,14 @@ async def remove_member(
 ):
     convo = await _require_member(db, conversation_id, user.id)
     # A user may always remove themselves (leave); otherwise admin required.
-    if member_id != user.id and not await convo_svc.is_admin(
+    is_self_leave = member_id == user.id
+    if not is_self_leave and not await convo_svc.is_admin(
         db, conversation_id, user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admins only"
         )
-    target = await db.get(ConversationMember, (conversation_id, member_id))
+    target = await convo_svc.get_membership(db, conversation_id, member_id)
     if target is None:
         return
     # Don't allow removing the last admin — reject and ask them to promote.
@@ -328,6 +450,7 @@ async def remove_member(
             select(func.count()).select_from(ConversationMember).where(
                 ConversationMember.conversation_id == conversation_id,
                 ConversationMember.role == MemberRole.admin,
+                ConversationMember.left_at.is_(None),
             )
         )
         if admin_count <= 1:
@@ -335,8 +458,59 @@ async def remove_member(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot remove the last admin; promote someone first",
             )
-    await db.delete(target)
+
+    target_user = await db.get(User, member_id)
+    target_name = target_user.display_name if target_user else "Someone"
+    target.left_at = datetime.now(timezone.utc)
+    target.left_at_seq = convo.last_seq
+
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    await msg_svc.create_message(
+        db,
+        conversation=convo,
+        sender_id=user.id,
+        client_id=f"system-remove-{conversation_id}-{member_id}-{now_ms}",
+        body=json.dumps(
+            {
+                "actor_id": user.id,
+                "actor_name": user.display_name,
+                "target_id": member_id,
+                "target_name": target_name,
+                "self_leave": is_self_leave,
+            }
+        ),
+        content_type="system.removed",
+    )
     await db.commit()
+    await db.refresh(convo)
+
+    # Notify everyone who can still see this conversation — remaining active
+    # members (so their member count/composer state stays live) and the
+    # removed member themselves (so a chat they have open updates in place
+    # instead of silently going stale).
+    remaining_ids = await convo_svc.list_member_ids(db, conversation_id)
+    recipients = set(remaining_ids) | {member_id}
+    total_recipients = await msg_svc.recipient_count(db, conversation_id)
+    system_messages = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.seq.desc())
+        .limit(1)
+    )
+    latest = system_messages.scalars().first()
+    if latest is not None:
+        payload = (
+            await msg_svc.serialize_message(db, latest, total_recipients)
+        ).model_dump(mode="json")
+        await registry.send_to_users(
+            list(recipients), {"type": "message.new", "message": payload}
+        )
+    for uid in recipients:
+        view = await _build_conversation_out(db, convo, uid)
+        await registry.send_to_user(
+            uid,
+            {"type": "conversation.updated", "conversation": view.model_dump(mode="json")},
+        )
 
 
 @router.patch("/{conversation_id}", response_model=ConversationOut)

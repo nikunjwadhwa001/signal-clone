@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { socketManager } from "@/lib/ws/socket-manager";
 import { sendMessageRest } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useToastStore } from "@/lib/stores/toast-store";
 import { queryKeys } from "@/lib/query-keys";
 import type { DisplayMessage } from "@/lib/types";
 
@@ -18,6 +19,7 @@ import type { DisplayMessage } from "@/lib/types";
 export function useSendMessage(conversationId: number) {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
+  const pushToast = useToastStore((s) => s.push);
 
   return async (body: string, replyToId: number | null = null) => {
     if (!userId || !body.trim()) return;
@@ -46,12 +48,14 @@ export function useSendMessage(conversationId: number) {
       optimistic,
     ]);
 
-    const markFailed = () =>
+    const markFailed = () => {
       queryClient.setQueryData<DisplayMessage[]>(key, (old = []) =>
         old.map((m) =>
           m.client_id === clientId ? { ...m, status: "failed" } : m
         )
       );
+      pushToast("Message failed to send. Check your connection.", "error");
+    };
 
     if (socketManager.isConnected) {
       const ok = socketManager.send({

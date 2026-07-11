@@ -75,7 +75,8 @@ async def create_message(
 async def recipient_count(db: AsyncSession, conversation_id: int) -> int:
     total = await db.scalar(
         select(func.count()).select_from(ConversationMember).where(
-            ConversationMember.conversation_id == conversation_id
+            ConversationMember.conversation_id == conversation_id,
+            ConversationMember.left_at.is_(None),
         )
     )
     # Recipients exclude the sender; -1 gives the count that must ack for a
@@ -98,6 +99,43 @@ async def mark_delivered(
         )
     elif receipt.delivered_at is None:
         receipt.delivered_at = now
+
+
+async def mark_all_delivered_for_user(
+    db: AsyncSession, user_id: int
+) -> list[tuple[int, int, int]]:
+    """Called when a user's socket connects: flips every message sent to them
+    while they were offline from 'sent' to 'delivered', same as a real client
+    finally receiving its backlog on reconnect. Returns
+    (message_id, conversation_id, sender_id) triples so the caller can notify
+    each sender that their check just went from single to double."""
+    now = datetime.now(timezone.utc)
+    rows = await db.execute(
+        select(Message)
+        .join(
+            ConversationMember,
+            ConversationMember.conversation_id == Message.conversation_id,
+        )
+        .where(
+            ConversationMember.user_id == user_id,
+            Message.sender_id != user_id,
+            Message.deleted_at.is_(None),
+        )
+    )
+    changed: list[tuple[int, int, int]] = []
+    for message in rows.scalars().all():
+        receipt = await db.get(MessageReceipt, (message.id, user_id))
+        if receipt is None:
+            db.add(
+                MessageReceipt(
+                    message_id=message.id, user_id=user_id, delivered_at=now
+                )
+            )
+            changed.append((message.id, message.conversation_id, message.sender_id))
+        elif receipt.delivered_at is None:
+            receipt.delivered_at = now
+            changed.append((message.id, message.conversation_id, message.sender_id))
+    return changed
 
 
 async def mark_read_up_to(

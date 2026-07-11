@@ -10,6 +10,20 @@ from app.models.conversation import MemberRole
 async def get_membership(
     db: AsyncSession, conversation_id: int, user_id: int
 ) -> ConversationMember | None:
+    """Active membership only — None if the user never joined *or* has since
+    left/been removed. Use this for anything that should stop working the
+    moment someone leaves: sending, admin actions, receipts."""
+    member = await db.get(ConversationMember, (conversation_id, user_id))
+    if member is None or member.left_at is not None:
+        return None
+    return member
+
+
+async def get_membership_any(
+    db: AsyncSession, conversation_id: int, user_id: int
+) -> ConversationMember | None:
+    """Membership regardless of left_at — use for read access, since a former
+    member should still be able to see history up to when they left."""
     return await db.get(ConversationMember, (conversation_id, user_id))
 
 
@@ -20,9 +34,12 @@ async def is_member(
 
 
 async def list_member_ids(db: AsyncSession, conversation_id: int) -> list[int]:
+    """Active members only — a removed member shouldn't count toward
+    delivery/read fan-out for future messages."""
     rows = await db.execute(
         select(ConversationMember.user_id).where(
-            ConversationMember.conversation_id == conversation_id
+            ConversationMember.conversation_id == conversation_id,
+            ConversationMember.left_at.is_(None),
         )
     )
     return [r[0] for r in rows.all()]

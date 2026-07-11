@@ -21,8 +21,8 @@ router = APIRouter()
 HEARTBEAT_SECONDS = 25
 
 
-async def _broadcast_presence(user_id: int, online: bool, db: AsyncSession):
-    """Tell everyone who shares a conversation with this user about presence."""
+async def _conversation_peers(user_id: int, db: AsyncSession) -> list[int]:
+    """Every other user this one shares at least one conversation with."""
     from sqlalchemy import select
 
     from app.models import ConversationMember
@@ -38,7 +38,12 @@ async def _broadcast_presence(user_id: int, online: bool, db: AsyncSession):
         )
         .distinct()
     )
-    peers = [r[0] for r in rows.all()]
+    return [r[0] for r in rows.all()]
+
+
+async def _broadcast_presence(user_id: int, online: bool, db: AsyncSession):
+    """Tell everyone who shares a conversation with this user about presence."""
+    peers = await _conversation_peers(user_id, db)
     await registry.send_to_users(
         peers,
         {
@@ -200,6 +205,38 @@ async def websocket_endpoint(ws: WebSocket, ticket: str):
     await registry.add(user_id, ws)
     async with SessionLocal() as db:
         await _broadcast_presence(user_id, True, db)
+        # The broadcast above only reaches peers already connected; tell this
+        # newly-connected client about peers who were online before it joined.
+        peers = await _conversation_peers(user_id, db)
+        for peer_id in peers:
+            if registry.is_online(peer_id):
+                await ws.send_json(
+                    {
+                        "type": "presence",
+                        "user_id": peer_id,
+                        "online": True,
+                        "at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+        # Flip any messages sent to this user while they were offline from
+        # single-check to double-check now that they've actually connected.
+        delivered = await msg_svc.mark_all_delivered_for_user(db, user_id)
+        await db.commit()
+        for message_id, conversation_id, sender_id in delivered:
+            total_recipients = await msg_svc.recipient_count(db, conversation_id)
+            message = await db.get(Message, message_id)
+            if message is None:
+                continue
+            summary = await msg_svc.receipt_summary(db, message, total_recipients)
+            await registry.send_to_user(
+                sender_id,
+                {
+                    "type": "receipt.update",
+                    "message_id": message_id,
+                    "conversation_id": conversation_id,
+                    "receipts": summary.model_dump(),
+                },
+            )
 
     async def heartbeat():
         try:

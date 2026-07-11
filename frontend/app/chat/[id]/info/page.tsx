@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar } from "@/components/ui/avatar";
+import { Modal } from "@/components/ui/modal";
 import {
   addMember,
   getMembers,
@@ -37,6 +38,7 @@ export default function GroupInfoPage({
   const conversation = conversations.find((c) => c.id === conversationId);
   const [addQuery, setAddQuery] = useState("");
   const [addResults, setAddResults] = useState<UserPublic[]>([]);
+  const [confirmTarget, setConfirmTarget] = useState<{ userId: number; name: string; isSelf: boolean } | null>(null);
 
   const membersQuery = useQuery({
     queryKey: queryKeys.members(conversationId),
@@ -57,7 +59,11 @@ export default function GroupInfoPage({
   });
   const removeMutation = useMutation({
     mutationFn: (userId: number) => removeMember(conversationId, userId),
-    onSuccess: invalidate,
+    onSuccess: (_, userId) => {
+      invalidate();
+      setConfirmTarget(null);
+      if (userId === currentUserId) router.push("/chat");
+    },
   });
   const disappearingMutation = useMutation({
     mutationFn: (seconds: number) =>
@@ -169,7 +175,13 @@ export default function GroupInfoPage({
               </div>
               {(isAdmin || m.user.id === currentUserId) && (
                 <button
-                  onClick={() => removeMutation.mutate(m.user.id)}
+                  onClick={() =>
+                    setConfirmTarget({
+                      userId: m.user.id,
+                      name: m.user.display_name,
+                      isSelf: m.user.id === currentUserId,
+                    })
+                  }
                   className="rounded-full px-2 py-1 text-xs text-red-500 hover:bg-red-50"
                 >
                   {m.user.id === currentUserId ? "Leave" : "Remove"}
@@ -179,6 +191,33 @@ export default function GroupInfoPage({
           ))}
         </div>
       </div>
+
+      <Modal
+        open={confirmTarget !== null}
+        onClose={() => setConfirmTarget(null)}
+        title={confirmTarget?.isSelf ? `Leave “${conversation.name}”?` : `Remove ${confirmTarget?.name}?`}
+      >
+        <p className="mb-5 text-sm text-text-secondary">
+          {confirmTarget?.isSelf
+            ? "You will no longer be able to send or receive messages in this group."
+            : "They will be removed from this group and won't be able to send or receive further messages."}
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setConfirmTarget(null)}
+            className="rounded-full px-4 py-2 text-sm text-text-secondary hover:bg-bg-hover"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={removeMutation.isPending}
+            onClick={() => confirmTarget && removeMutation.mutate(confirmTarget.userId)}
+            className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-60"
+          >
+            {confirmTarget?.isSelf ? "Leave" : "Remove"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
