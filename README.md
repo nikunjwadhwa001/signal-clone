@@ -2,11 +2,14 @@
 
 A functional clone of Signal Messenger — real-time 1:1 and group messaging, contacts, delivery/read receipts, typing indicators, and a Signal-styled UI. Built as an SDE fullstack take-home assignment. Real end-to-end encryption and phone verification are mocked, as scoped by the assignment brief.
 
+**Live demo:** https://signal-clone-1.onrender.com
+(demo login: username `nikunj`, password `password`, OTP `123456` — see more seeded accounts below)
+
 ## Tech Stack
 
 - **Frontend:** Next.js (App Router) + TypeScript, TanStack Query, Zustand, Tailwind CSS
 - **Backend:** FastAPI (Python, async), SQLAlchemy (async ORM)
-- **Database:** SQLite (via `aiosqlite`)
+- **Database:** SQLite locally (via `aiosqlite`); Postgres (via `asyncpg`) in production, since free-tier hosts use ephemeral disks that would otherwise wipe a SQLite file on every redeploy — same schema, swapped via `DATABASE_URL`
 - **Real-time:** Native WebSockets (one connection per client, authenticated via a short-lived ticket)
 - **Auth:** Username + password + a mocked fixed OTP (`123456`), JWT access tokens, hashed refresh tokens for revocable sessions
 
