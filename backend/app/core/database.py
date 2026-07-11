@@ -25,7 +25,11 @@ class UTCDateTime(TypeDecorator):
     shifting displayed times/day-grouping by the client's UTC offset. This
     type always stores UTC and always returns tz-aware UTC datetimes."""
 
-    impl = DateTime
+    # timezone=True matters on Postgres (creates a real TIMESTAMPTZ column);
+    # SQLite ignores it and stores everything the same way regardless. Without
+    # it, Postgres creates TIMESTAMP WITHOUT TIME ZONE and asyncpg rejects the
+    # tz-aware datetimes this type always produces.
+    impl = DateTime(timezone=True)
     cache_ok = True
 
     def process_bind_param(self, value: datetime | None, dialect):
