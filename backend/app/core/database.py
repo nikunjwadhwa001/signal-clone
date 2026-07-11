@@ -57,24 +57,20 @@ SessionLocal = async_sessionmaker(
 )
 
 
-@event.listens_for(Engine, "connect")
-def _set_sqlite_pragmas(dbapi_connection, _connection_record):
-    """WAL lets readers and the single writer coexist; busy_timeout makes
-    concurrent WS writers wait for the lock instead of erroring."""
-    # Only applies to sqlite connections.
-    if dbapi_connection.__class__.__module__.startswith("sqlite") or hasattr(
-        dbapi_connection, "isolation_level"
-    ):
-        try:
-            cursor = dbapi_connection.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA busy_timeout=5000")
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.close()
-        except Exception:
-            # Non-sqlite backends will ignore these pragmas.
-            pass
+if settings.database_url.startswith("sqlite"):
+
+    @event.listens_for(Engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record):
+        """WAL lets readers and the single writer coexist; busy_timeout makes
+        concurrent WS writers wait for the lock instead of erroring. Gated on
+        the configured DATABASE_URL (not connection introspection) so this
+        never fires PRAGMA statements against a Postgres connection."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
