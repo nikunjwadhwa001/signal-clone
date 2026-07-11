@@ -8,16 +8,21 @@ from fastapi.staticfiles import StaticFiles
 from app.api import auth, contacts, conversations, messages, users
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.seed import seed_if_empty
 from app.ws import endpoint as ws_endpoint
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # In this SQLite build we create tables on boot so a fresh clone / fresh
-    # Render disk comes up ready; Alembic migrations are the source of truth
-    # for schema changes.
+    # Tables are created on every boot so a fresh clone / fresh managed DB
+    # comes up ready; Alembic migrations are the source of truth for schema
+    # changes once this needs real migrations. seed_if_empty() only inserts
+    # demo data the very first time (empty users table) — safe to run on
+    # every restart since it's a no-op once real data exists, which is what
+    # makes a free-tier host with no shell/one-off-job access self-seed.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await seed_if_empty()
     os.makedirs(settings.upload_dir, exist_ok=True)
     yield
 
