@@ -8,6 +8,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useThemeStore } from "@/lib/stores/theme-store";
 import { updateMe, uploadAvatar } from "@/lib/api/users";
 import { logout as logoutApi } from "@/lib/api/auth";
+import { socketManager } from "@/lib/ws/socket-manager";
 
 const COMING_SOON = [
   { icon: "🔒", label: "Privacy" },
@@ -47,6 +48,10 @@ export default function SettingsPage() {
 
   async function handleLogout() {
     if (refreshToken) await logoutApi(refreshToken).catch(() => {});
+    // Otherwise the WebSocket stays open authenticated as this user — the
+    // next login on this tab would silently reuse that stale connection,
+    // since socketManager.connect() no-ops whenever a socket is already open.
+    socketManager.disconnect();
     clear();
     queryClient.clear();
     router.push("/");

@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useRealtimeStore } from "@/lib/stores/realtime-store";
+import { socketManager } from "@/lib/ws/socket-manager";
 
 function ComposeIcon() {
   return (
@@ -53,6 +54,10 @@ export function Sidebar() {
   }, [conversations, query]);
 
   function handleLogout() {
+    // Otherwise the WebSocket stays open authenticated as this user — the
+    // next login on this tab would silently reuse that stale connection,
+    // since socketManager.connect() no-ops whenever a socket is already open.
+    socketManager.disconnect();
     clear();
     router.push("/");
   }
