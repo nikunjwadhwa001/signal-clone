@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn, formatMessageTime } from "@/lib/utils";
 import { MessageStatusIcon } from "@/components/chat/message-status";
@@ -28,6 +28,20 @@ export function MessageBubble({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Touch devices have no hover, so mouseenter/mouseleave (used for desktop)
+  // never fires — a long-press is the touch equivalent of hovering to reveal
+  // the react/reply/delete actions.
+  const startLongPress = () => {
+    longPressTimer.current = setTimeout(() => setShowActions(true), 450);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   const reactMutation = useMutation({
     mutationFn: (emoji: string) => react(message.id, emoji),
@@ -89,6 +103,15 @@ export function MessageBubble({
         setShowActions(false);
         setShowEmojiPicker(false);
       }}
+      onTouchStart={startLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchMove={cancelLongPress}
+      onClick={() => {
+        if (showActions) {
+          setShowActions(false);
+          setShowEmojiPicker(false);
+        }
+      }}
     >
       <div className={cn("relative my-0.5 flex max-w-[70%] items-end gap-1.5", mine && "flex-row-reverse")}>
         <div
@@ -138,7 +161,7 @@ export function MessageBubble({
         </div>
 
         {showActions && (
-          <div className="relative flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+          <div className="relative flex items-center gap-0.5">
             <button
               onClick={() => setShowEmojiPicker((v) => !v)}
               className="flex h-7 w-7 items-center justify-center rounded-full text-sm hover:bg-bg-hover"
