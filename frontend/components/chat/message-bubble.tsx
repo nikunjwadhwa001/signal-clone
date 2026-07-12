@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn, formatMessageTime } from "@/lib/utils";
 import { MessageStatusIcon } from "@/components/chat/message-status";
+import { Modal } from "@/components/ui/modal";
 import { react, deleteMessage } from "@/lib/api/messages";
 import { queryKeys } from "@/lib/query-keys";
-import type { DisplayMessage } from "@/lib/types";
+import type { ConversationOut, DisplayMessage } from "@/lib/types";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -25,6 +26,7 @@ export function MessageBubble({
 }) {
   const [showActions, setShowActions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
 
   const reactMutation = useMutation({
@@ -44,6 +46,28 @@ export function MessageBubble({
         queryKeys.messages(message.conversation_id),
         (old = []) => old.map((m) => (m.id === updated.id ? { ...updated, status: m.status } : m))
       );
+      // The WS event only reaches other members — patch our own sidebar
+      // preview here since it excludes the sender.
+      queryClient.setQueryData<ConversationOut[]>(
+        queryKeys.conversations,
+        (old = []) => {
+          const idx = old.findIndex(
+            (c) => c.id === updated.conversation_id && c.last_message?.id === updated.id
+          );
+          if (idx === -1) return old;
+          const copy = [...old];
+          copy[idx] = {
+            ...copy[idx],
+            last_message: {
+              ...copy[idx].last_message!,
+              body: updated.body,
+              deleted_at: updated.deleted_at,
+            },
+          };
+          return copy;
+        }
+      );
+      setConfirmDelete(false);
     },
   });
 
@@ -131,7 +155,7 @@ export function MessageBubble({
             </button>
             {mine && (
               <button
-                onClick={() => deleteMutation.mutate()}
+                onClick={() => setConfirmDelete(true)}
                 className="flex h-7 w-7 items-center justify-center rounded-full text-sm hover:bg-bg-hover"
                 title="Delete"
               >
@@ -162,6 +186,30 @@ export function MessageBubble({
           </div>
         )}
       </div>
+
+      <Modal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Delete message?"
+      >
+        <p className="mb-5 text-sm text-text-secondary">
+          This message will be deleted for everyone in this chat. This can't be undone.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setConfirmDelete(false)}
+            className="rounded-full px-4 py-2 text-sm text-text-secondary hover:bg-bg-hover"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => deleteMutation.mutate()}
+            className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+          >
+            Delete
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

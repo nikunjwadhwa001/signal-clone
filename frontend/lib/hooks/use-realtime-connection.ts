@@ -180,8 +180,34 @@ export function useRealtimeConnection() {
       upsertMessage(data.message);
     });
 
+    // Only patches the sidebar preview if this message is still the
+    // conversation's last message — deleting an older message shouldn't
+    // touch the preview or reorder the list.
+    const patchLastMessagePreview = (msg: MessageOut) => {
+      queryClient.setQueryData<ConversationOut[]>(
+        queryKeys.conversations,
+        (old = []) => {
+          const idx = old.findIndex(
+            (c) => c.id === msg.conversation_id && c.last_message?.id === msg.id
+          );
+          if (idx === -1) return old;
+          const copy = [...old];
+          copy[idx] = {
+            ...copy[idx],
+            last_message: {
+              ...copy[idx].last_message!,
+              body: msg.body,
+              deleted_at: msg.deleted_at,
+            },
+          };
+          return copy;
+        }
+      );
+    };
+
     const offMessageDeleted = socketManager.on("message.deleted", (data) => {
       upsertMessage(data.message);
+      patchLastMessagePreview(data.message);
     });
 
     const offTyping = socketManager.on("typing", (data) => {
