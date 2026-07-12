@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import auth, contacts, conversations, messages, users
 from app.core.config import settings
 from app.core.database import Base, engine
-from app.seed import seed_if_empty
+from app.seed import clear_broken_avatars, seed_if_empty
 from app.ws import endpoint as ws_endpoint
 
 
@@ -23,6 +23,7 @@ async def lifespan(_app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await seed_if_empty()
+    await clear_broken_avatars()
     os.makedirs(settings.upload_dir, exist_ok=True)
     yield
 

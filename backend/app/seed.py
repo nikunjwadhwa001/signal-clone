@@ -14,7 +14,7 @@ import asyncio
 import random
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import Base, SessionLocal, engine
@@ -224,6 +224,21 @@ async def seed_if_empty() -> None:
         if count:
             return
         await _populate(db)
+
+
+async def clear_broken_avatars() -> None:
+    """The avatar upload feature was removed after we found uploaded files
+    are stored as relative /uploads/... paths, which the browser resolves
+    against the frontend's own domain (not the backend's) in production —
+    and even a corrected URL would still be wiped on every restart/redeploy
+    by the free-tier host's ephemeral disk. Runs on every boot to null out
+    any avatar_url a user set before the feature was pulled; a no-op once
+    none remain."""
+    async with SessionLocal() as db:
+        await db.execute(
+            update(User).where(User.avatar_url.like("/uploads/%")).values(avatar_url=None)
+        )
+        await db.commit()
 
 
 async def seed() -> None:
