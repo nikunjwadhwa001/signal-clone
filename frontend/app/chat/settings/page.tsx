@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Avatar } from "@/components/ui/avatar";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useThemeStore } from "@/lib/stores/theme-store";
-import { updateMe, uploadAvatar } from "@/lib/api/users";
+import { updateMe } from "@/lib/api/users";
 import { logout as logoutApi } from "@/lib/api/auth";
 import { socketManager } from "@/lib/ws/socket-manager";
 
@@ -41,11 +41,6 @@ export default function SettingsPage() {
     },
   });
 
-  const avatarMutation = useMutation({
-    mutationFn: (file: File) => uploadAvatar(file),
-    onSuccess: (u) => setUser(u),
-  });
-
   async function handleLogout() {
     if (refreshToken) await logoutApi(refreshToken).catch(() => {});
     // Otherwise the WebSocket stays open authenticated as this user — the
@@ -73,18 +68,11 @@ export default function SettingsPage() {
 
       <div className="mx-auto w-full max-w-lg p-6">
         <div className="mb-6 flex flex-col items-center gap-3 rounded-2xl bg-bg-primary p-6">
-          <label className="relative cursor-pointer">
-            <Avatar name={user.display_name} seed={user.id} src={user.avatar_url} size={88} />
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && avatarMutation.mutate(e.target.files[0])}
-            />
-            <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-signal-blue text-xs text-white">
-              ✎
-            </span>
-          </label>
+          {/* Avatar upload is disabled: uploaded files live on the free-tier
+              host's ephemeral disk and are wiped on every restart/redeploy,
+              so uploads would silently disappear. Colored-initials avatars
+              are the only option until persistent image storage is added. */}
+          <Avatar name={user.display_name} seed={user.id} src={user.avatar_url} size={88} />
 
           {editingName ? (
             <div className="flex w-full flex-col gap-2">
